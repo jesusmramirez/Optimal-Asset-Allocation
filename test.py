@@ -48,8 +48,26 @@ with print_context(formatter={'float': '{: 1.5f}'.format}):
     print('mean:\n', X.mean(axis=0))
     print('covariance:\n', np.cov(X.T))
     
-
-
+# use Cornish-Fisher formulas to compute Value-at-Risk (VaR)
+X = new_data[:,0]
+Y = new_data[:,1]
+quantile_x = opt.approx_quantile(X, q=0.05)
+quantile_y = opt.approx_quantile(Y, q=0.05)
+print('VaR for X: {:1.4f}'.format(quantile_x))
+print('VaR for Y: {:1.4f}'.format(quantile_y))
+    
+# Compute Expected Shortfall or Conditional VaR
+cvar_x = 0
+cvar_y = 0
+for i in range(5):
+    q = (i + 1)/100    
+    cvar_x += opt.approx_quantile(X, q=q)
+    cvar_y += opt.approx_quantile(Y, q=q)
+cvar_x = cvar_x/5
+cvar_y = cvar_y/5
+    
+print('CVaR for X: {:1.4f}'.format(cvar_x))
+print('CVaR for Y: {:1.4f}'.format(cvar_y))
 
 # optimize a portfolio with this assets
 initial = np.array([0.5,0.5])
