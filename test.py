@@ -7,18 +7,8 @@ Created on Thu Nov  9 08:39:33 2017
 
 import pandas as pd
 import numpy as np
-
-from contextlib import contextmanager
-@contextmanager
-def print_context(*args, **kwargs):
-    original = np.get_printoptions()
-    np.set_printoptions(*args, **kwargs)
-    try:
-        yield
-    finally:
-        np.set_printoptions(**original)
-        
 import cvar_optimization as opt
+from print_context import print_context
 
 # make fake data
 np.random.seed(0)
@@ -57,6 +47,9 @@ with print_context(formatter={'float': '{: 1.5f}'.format}):
     X = new_data
     print('mean:\n', X.mean(axis=0))
     print('covariance:\n', np.cov(X.T))
+    
+
+
 
 # optimize a portfolio with this assets
 initial = np.array([0.5,0.5])
