@@ -7,7 +7,7 @@ Created on Thu Nov  9 07:39:13 2017
 
 import numpy as np
 from scipy.stats import norm, moment
-from scipy.optimize import minimize
+from scipy.optimize import minimize, linprog
 
 def standardize(data):
     """
@@ -23,7 +23,7 @@ def standardize(data):
         
     """
     # remove the mean
-    data = data - data.mean(axis=0)
+    data = data - np.mean(data, axis=0)
     # scale the covariance
     cov = np.cov(data.T)
     chol = np.linalg.cholesky(cov)
@@ -163,14 +163,11 @@ def mean_mvar_optimization(data, min_return, initial, quantile=0.05, expected_re
            'fun': lambda x: const_3(x)},
            {'type': 'ineq',
            'fun': lambda x: const_4(x)})
-    
-    if method=='SLSQP':
-        # Sequential Least SQuares Programming (SLSQP)
-        res = minimize(func, initial, constraints=cons, method='SLSQP', options={'disp': display})
-        return res
-    else:
-        print('Please, introduce a valid method')
-        return None
+
+    # Sequential Least SQuares Programming (SLSQP)
+    res = minimize(func, initial, constraints=cons, method='SLSQP', options={'disp': display})
+    return res
+
 
 # minimum-variance portfolio given a minimum portfolio return (Markowitz optimization)
 def mean_variance_optimization(data, min_return, initial, expected_returns=None, covariance=None, display=False):
@@ -200,7 +197,7 @@ def mean_variance_optimization(data, min_return, initial, expected_returns=None,
         expected_returns = np.mean(data, axis=0)
 
     if covariance == None:
-        covariance = np.covariance(data.T)
+        covariance = np.cov(data.T)
     
     def func(weights):
         """
@@ -244,7 +241,7 @@ def mean_variance_optimization(data, min_return, initial, expected_returns=None,
            'fun': lambda x: const_4(x)})
     
     # Sequential Least SQuares Programming (SLSQP)
-    res = minimize(func, initial, constraints=cons, method='SLSQP', options={'disp': True})
+    res = minimize(func, initial, constraints=cons, method='SLSQP', options={'disp': display})
     return res
 
 
@@ -305,4 +302,52 @@ def mean_cvar_optimization(data, min_return, beta=0.95, expected_returns=None, d
     
     # minimize beta-CVaR
     res = linprog(c, A_ub, b_ub, A_eq, b_eq, bounds)
+    res.x = res.x[:n]
     return res
+
+
+def efficient_frontier(data, num_points=10):
+    """
+    Computes the efficient frontier
+    
+    Parameters
+    ----------
+        data: array_like of shape(M, N) where M denotes the number of 
+            draws and N the number of assets each row is a draw from 
+            joint distribution of returns
+        num_points: number of points for the efficient frontier
+
+    Return
+    ------
+        out: 3 array_like of shape(num_points, ) as follows: portfolio returns,
+            portfolio risks and optimal weights
+    
+    """
+    # compute expected return and covariance matrix from data
+    expected_returns = np.mean(data, axis=0)
+    covariance = np.cov(data.T)
+    
+    # make a grid for minimum portfolio return (short-selling is not allowed)
+    lower_return = min(expected_returns)
+    upper_return = max(expected_returns)
+    min_returns = np.linspace(lower_return, upper_return, num=num_points)
+
+    # initialize weights for portfolio optimization
+    num_assets = len(expected_returns)
+    initial = np.ones(num_assets)/num_assets
+    
+    weights = np.zeros(shape=(num_points, num_assets))
+    for i, min_return in enumerate(min_returns):
+        res = mean_variance_optimization(data, min_return, initial)
+        weights[i] = res.x[:num_assets]
+        
+    # compute the efficient frontier
+    # porfolio return for each optimal portfolio
+    portfolio_return = weights@expected_returns
+    portfolio_risk = np.zeros_like(portfolio_return)
+    
+    for i in range(num_points):
+        # portfolio risk (standard deviation) for each optimal portfolio
+        portfolio_risk[i] = np.sqrt(weights[i]@covariance@weights[i])
+    
+    return portfolio_return, portfolio_risk, weights
