@@ -459,7 +459,7 @@ def efficient_frontier_cvar(data, beta=0.95, num_points=10):
     return portfolio_return, portfolio_risk, cvars, weights
 
 
-def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins=10):
+def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins=10, scale=0.1):
     """
     Computes the efficient frontier
     
@@ -489,12 +489,11 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
     upper_return = max(expected_returns)
     min_returns = np.linspace(lower_return, upper_return, num=num_points)
 
-    # generate random normal shocks with mean zero and variance 1/100th of real 
-    # variances
-    scale = 0.01
-    variances = np.var(data, axis=0)*scale
-    num_assets = len(variances)
-    shocks = np.random.normal(scale=variances, size=(sample_size, num_assets))
+    # generate random normal shocks with mean zero and variance 1/10th of its 
+    # std. deviation
+    std = np.std(data, axis=0)*scale
+    num_assets = len(std)
+    shocks = np.random.normal(scale=np.square(std), size=(sample_size, num_assets))
 
     # initialize weights for portfolio optimization    
     weights = np.zeros(shape=(num_points*sample_size, num_assets))
@@ -503,10 +502,8 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
     # optimize for each sample of new expected returns
     for i, min_return in enumerate(min_returns):
         for j in range(sample_size):
-            new_expected_returns = expected_returns + shocks[j]
-            res = mean_variance_optimization(data, min_return, initial, 
-                                             expected_returns=new_expected_returns, 
-                                             covariance=covariance)
+            new_data = data + shocks[j]
+            res = mean_variance_optimization(new_data, min_return, initial)
             weights[i*sample_size + j] = res.x
     
     # measure the risk for each portfolio
