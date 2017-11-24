@@ -33,8 +33,10 @@ with print_context(formatter={'float': '{: 1.4f}'.format}):
     print(np.cov(X.T))
 
 # new estimates of mean and variance-covariance matrices
-new_mean = np.array([0.005, 0.006])
-new_cov = np.array([[0.002025, 0.00198],[0.00198, 0.003025]])
+new_mean = np.array([0.01, 0.04])
+corr = np.corrcoef(data.T)
+new_std_dev = np.array([0.03, 0.07])
+new_cov = np.outer(new_std_dev, new_std_dev)*corr
 new_data = opt.rescale(data_m_v, new_mean, new_cov)
 
 # print its mean and variance-covariance
@@ -66,17 +68,23 @@ print('CVaR for Y: {:1.4f}'.format(cvar_y))
 
 # make fake data
 np.random.seed(0)
-fake_mean = np.array([0.05, 0.01])
-fake_variance = np.array([[0.0025, 0.0006],[0.0006, 0.0009]])
-data = np.random.multivariate_normal(mean=fake_mean,cov=fake_variance,size=1000)
+mean = np.array([0.01, 0.05])
+corr = np.array([[1.0, -0.8], [-0.8, 1.0]])
+std_dev = np.array([0.03, 0.07])
+cov = np.outer(new_std_dev, new_std_dev)*corr
+data = np.random.multivariate_normal(mean=mean,cov=cov,size=1000)
+
+# expected return
+expected_return = np.mean(data,axis=0)
+covariance = np.cov(data.T)
 
 # optimize a portfolio using Markowitz framework
-min_return = 0.02
+min_return = 0.015
 initial = np.array([0.5,0.5])
 res = opt.mean_variance_optimization(data, min_return=min_return, initial=initial)
 
 print('Optimal weights: ({0:1.4f}, {1:1.4f})'.format(res.x[0], res.x[1]))
-print('Optimal Return: {:1.4f}'.format(res.x@fake_mean))
+print('Optimal Return: {:1.4f}'.format(res.x@expected_return))
 print('Optimal Risk (Std. Dev.): {:1.4f}'.format(np.sqrt(res.fun)))
 
 # compute the efficient frontier and plot it
@@ -94,15 +102,16 @@ writer = pd.ExcelWriter('results.xlsx')
 df.to_excel(writer,sheet_name='mean_var')
 
 # optimize a portfolio using mean-cvar framework
-min_return = 0.02
-res = opt.mean_cvar_optimization(data, min_return=min_return)
+min_return = 0.015
+res = opt.mean_cvar_optimization(data, min_return=min_return, beta=0.95)
 
 print('Optimal weights: ({0:1.4f}, {1:1.4f})'.format(res.x[0], res.x[1]))
-print('Optimal Return: {:1.4f}'.format(res.x@fake_mean))
+print('Optimal Return: {:1.4f}'.format(res.x@expected_return))
 print('Optimal Risk (CVaR): {:1.4f}'.format(res.fun))
+print('Risk (Std. Dev.): {:1.4f}'.format(np.sqrt(res.x@covariance@res.x)))
 
 # compute the efficient frontier and plot it
-returns, risks , cvars, opt_weights = opt.efficient_frontier_cvar(data)
+returns, risks , cvars, opt_weights = opt.efficient_frontier_cvar(data, beta=0.90)
 pp.plot(risks, returns)
 pp.title('Efficient Frontier')
 pp.xlabel('Risk')
