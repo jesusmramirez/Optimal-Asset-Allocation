@@ -8,7 +8,7 @@ Created on Thu Nov 23 21:11:28 2017
 import pandas as pd
 import numpy as np
 from scipy.stats import skew, kurtosis
-from cvar_optimization import standardize, rescale, approx_quantile
+from porfolio_optimization import standardize, rescale, approx_quantile
 from print_context import print_context
 
 # import real data
