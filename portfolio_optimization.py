@@ -516,7 +516,7 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
     bin_size = (max(portfolio_risk) - min(portfolio_risk))/num_bins
     
     min_value = min(portfolio_risk)
-    average_weights = np.zeros(num_bins)
+    average_weights = []
 
     for j in range(num_bins):
         if j == 0:
@@ -526,8 +526,9 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
     
         average_weight = np.mean(average_weight, axis=0)
         average_weight = average_weight/sum(average_weight)
-        average_weights[j] = average_weight
+        average_weights.append(average_weight)
 
+    average_weights = np.array(average_weights)
     # compute the efficient frontier
     # porfolio return for each optimal portfolio
     portfolio_return = average_weights@expected_returns
