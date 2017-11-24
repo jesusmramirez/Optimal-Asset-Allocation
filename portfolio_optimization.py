@@ -381,7 +381,7 @@ def efficient_frontier(data, num_points=10):
     """
     # compute expected return and covariance matrix from data
     expected_returns = np.mean(data, axis=0)
-    covariance = np.cov(data.T)
+    covariance = np.cov(data.T, ddof=0)
     
     # make a grid for minimum portfolio return (short-selling is not allowed)
     lower_return = min(expected_returns)
@@ -430,7 +430,7 @@ def efficient_frontier_cvar(data, beta=0.95, num_points=10):
     """
     # compute expected return and covariance matrix from data
     expected_returns = np.mean(data, axis=0)
-    covariance = np.cov(data.T)
+    covariance = np.cov(data.T, ddof=0)
     
     # make a grid for minimum portfolio return (short-selling is not allowed)
     lower_return = min(expected_returns)
@@ -482,15 +482,16 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
     """
     # compute expected return and covariance matrix from data
     expected_returns = np.mean(data, axis=0)
-    covariance = np.cov(data.T)
+    covariance = np.cov(data.T, ddof=0)
     
     # make a grid for minimum portfolio return (short-selling is not allowed)
     lower_return = min(expected_returns)
     upper_return = max(expected_returns)
     min_returns = np.linspace(lower_return, upper_return, num=num_points)
 
-    # generate random normal shocks with mean zero and variance 1/10th of real variances
-    scale = 0.1
+    # generate random normal shocks with mean zero and variance 1/100th of real 
+    # variances
+    scale = 0.01
     variances = np.var(data, axis=0)*scale
     num_assets = len(variances)
     shocks = np.random.normal(scale=variances, size=(sample_size, num_assets))
@@ -503,7 +504,9 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
     for i, min_return in enumerate(min_returns):
         for j in range(sample_size):
             new_expected_returns = expected_returns + shocks[j]
-            res = mean_variance_optimization(data, min_return, initial, expected_returns=new_expected_returns, covariance=covariance)
+            res = mean_variance_optimization(data, min_return, initial, 
+                                             expected_returns=new_expected_returns, 
+                                             covariance=covariance)
             weights[i*sample_size + j] = res.x
     
     # measure the risk for each portfolio
