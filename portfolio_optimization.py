@@ -25,7 +25,7 @@ def standardize(data):
     # remove the mean
     data = data - np.mean(data, axis=0)
     # scale the covariance
-    cov = np.cov(data.T)
+    cov = np.cov(data.T, ddof=0)
     chol = np.linalg.cholesky(cov)
     inv_chol = np.linalg.inv(chol)
     return data@inv_chol.T
@@ -97,7 +97,8 @@ def cornish_fisher_expansion(q, k1, k2, k3, k4, k5):
     return x_q
 
 # minimum-VaR portfolio given a minimum portfolio return (Markowitz optimization)
-def mean_mvar_optimization(data, min_return, initial, quantile=0.05, expected_returns=None, display=False):
+def mean_mvar_optimization(data, min_return, initial, quantile=0.05, 
+                           expected_returns=None, display=False):
     """
     Compute optimal weights after minimizing the cvar for given a quantile 
     level
@@ -150,7 +151,8 @@ def mean_mvar_optimization(data, min_return, initial, quantile=0.05, expected_re
 
     def const_4(weights):
         """
-        Contraint 4: portfolio return can be lower than a given fixed minimum return
+        Contraint 4: portfolio return can be lower than a given fixed minimum 
+        return
         """
         return weights@expected_returns - min_return
     
@@ -165,12 +167,14 @@ def mean_mvar_optimization(data, min_return, initial, quantile=0.05, expected_re
            'fun': lambda x: const_4(x)})
 
     # Sequential Least SQuares Programming (SLSQP)
-    res = minimize(func, initial, constraints=cons, method='SLSQP', options={'disp': display})
+    res = minimize(func, initial, constraints=cons, method='SLSQP', 
+                   options={'disp': display})
     return res
 
 
 # minimum-variance portfolio given a minimum portfolio return (Markowitz optimization)
-def mean_variance_optimization(data, min_return, initial, expected_returns=None, covariance=None, display=False):
+def mean_variance_optimization(data, min_return, initial, expected_returns=None, 
+                               covariance=None, display=False):
     """
     Computes the optimal weights that minimize portfolio variance subject to minimum 
     level of return in the portfolio using Sequential Least SQuares Programming
@@ -197,7 +201,7 @@ def mean_variance_optimization(data, min_return, initial, expected_returns=None,
         expected_returns = np.mean(data, axis=0)
 
     if covariance == None:
-        covariance = np.cov(data.T)
+        covariance = np.cov(data.T, ddof=0)
     
     def func(weights):
         """
@@ -226,7 +230,8 @@ def mean_variance_optimization(data, min_return, initial, expected_returns=None,
     
     def const_4(weights):
         """
-        Contraint 4: portfolio return can be lower than a given fixed minimum return
+        Contraint 4: portfolio return can be lower than a given fixed minimum 
+        return
         """
         return weights@expected_returns - min_return
     
@@ -241,11 +246,13 @@ def mean_variance_optimization(data, min_return, initial, expected_returns=None,
            'fun': lambda x: const_4(x)})
     
     # Sequential Least SQuares Programming (SLSQP)
-    res = minimize(func, initial, constraints=cons, method='SLSQP', options={'disp': display})
+    res = minimize(func, initial, constraints=cons, method='SLSQP', 
+                   options={'disp': display})
     return res
 
 
-def mean_cvar_optimization(data, min_return, beta=0.95, expected_returns=None, display=False):
+def mean_cvar_optimization(data, min_return, beta=0.95, expected_returns=None, 
+                           display=False):
     """
     Computes the optimal weights that minimize beta-CVaR subject to minimum 
     level of return in the portfolio using linear programming (simplex method)
@@ -304,6 +311,55 @@ def mean_cvar_optimization(data, min_return, beta=0.95, expected_returns=None, d
     res = linprog(c, A_ub, b_ub, A_eq, b_eq, bounds)
     res.x = res.x[:n]
     return res
+
+
+def resampling_optimization(data, min_return, initial, sample_size=100, 
+                            expected_returns=None, covariance=None, display=False):
+    """
+    Computes the optimal weights that minimize beta-CVaR subject to minimum 
+    level of return in the portfolio using linear programming (simplex method)
+    
+    Parameters
+    ----------
+        data: array_like of shape (M, N) where M denotes the number of 
+            draws and N the number of assets each row is a draw from 
+            joint distribution of returns
+        min_return: scalar float
+            specifies the minimum return that the portfolio can attain
+        initial: array_like of shape(N, )
+        sample_size: int scalar, default value 100
+            specifies the sample size for resampling
+        expected_returns: array_like of shape (N, )
+        covariance: array_like of shape (N, N)
+        display: boolean, default value is False
+            if it is True, a summary of the optimization procedure is shown
+
+
+    Return
+    ------
+        out: OptimizeResult object that stores the optimal value and weights
+            among other features after optimization
+            (for more information see scipy.optimize documentation)
+    
+    References
+    ----------
+        Rockafellar and Uryasev, Optimization of Conditional Value-At-Risk. The 
+        Journal of Risk, Vol. 2, No. 3, 2000, 21-41 
+    
+    """
+    scale = 0.1
+    variances = np.var(data, axis=0)*scale
+    num_asset = len(variances)
+    shocks = np.random.normal(scale=variances, size=(sample_size, num_asset))
+    
+    weights =  np.zeros(shape=(sample_size, num_asset))
+    for i in range(sample_size):
+        shocked_data = data + shocks[i]
+        res = mean_variance_optimization(shocked_data, min_return, initial, 
+                                         display=display)
+        weights[i]= res.x
+        
+    return  weights
 
 
 def efficient_frontier(data, num_points=10):
@@ -401,3 +457,83 @@ def efficient_frontier_cvar(data, beta=0.95, num_points=10):
         portfolio_risk[i] = np.sqrt(weights[i]@covariance@weights[i])
     
     return portfolio_return, portfolio_risk, cvars, weights
+
+
+def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins=10):
+    """
+    Computes the efficient frontier
+    
+    Parameters
+    ----------
+        data: array_like of shape(M, N) where M denotes the number of 
+            draws and N the number of assets each row is a draw from 
+            joint distribution of returns
+        num_points: number of points for the efficient frontier
+        sample_size: int scalar, default value 100
+            specifies the size for each sample in the resampling procedure
+        num_bins: int scalar, default value 10
+            specifies the number of bins to which the portfolios will be group
+
+    Return
+    ------
+        out: 3 array_like of shape(num_points, ) as follows: portfolio returns,
+            portfolio risks and optimal weights
+    
+    """
+    # compute expected return and covariance matrix from data
+    expected_returns = np.mean(data, axis=0)
+    covariance = np.cov(data.T)
+    
+    # make a grid for minimum portfolio return (short-selling is not allowed)
+    lower_return = min(expected_returns)
+    upper_return = max(expected_returns)
+    min_returns = np.linspace(lower_return, upper_return, num=num_points)
+
+    # generate random normal shocks with mean zero and variance 1/10th of real variances
+    scale = 0.1
+    variances = np.var(data, axis=0)*scale
+    num_asset = len(variances)
+    shocks = np.random.normal(scale=variances, size=(sample_size, num_asset))
+
+    # initialize weights for portfolio optimization    
+    weights = np.zeros(shape=(num_points*sample_size, num_assets))
+    initial = np.ones(num_assets)/num_assets    
+    
+    # optimize for each sample of new expected returns
+    for i, min_return in enumerate(min_returns):
+        for j in range(sample_size):
+            new_expected_returns = expected_returns + shocks[j]
+            res = mean_variance_optimization(data, min_return, initial, expected_returns=new_expected_returns, covariance=covariance)
+            weights[i*sample_size + j] = res.x
+    
+    # measure the risk for each portfolio
+    portfolio_risk = np.zeros(shape=num_points*sample_size)
+    for i in range(num_points*sample_size):
+        # portfolio risk (standard deviation) for each optimal resampled portfolio
+        portfolio_risk[i] = np.sqrt(weights[i]@covariance@weights[i])
+    
+    # group portfolio weights by bins of same size, average them and normalize to one
+    bin_size = (max(portfolio_risk) - min(portfolio_risk))/num_bins
+    
+    min_value = min(portfolio_risk)
+    average_weights = np.zeros(num_bins)
+
+    for j in range(num_bins):
+        if j == 0:
+            average_weight = weights[portfolio_risk <= min_value + bin_size]
+        else:
+            average_weight = weights[(portfolio_risk <= min_value + bin_size*(j + 1)) & (portfolio_risk > min_value + bin_size*j)]
+    
+        average_weight = np.mean(average_weight, axis=0)
+        average_weight = average_weight/sum(average_weight)
+        average_weights[j] = average_weight
+
+    # compute the efficient frontier
+    # porfolio return for each optimal portfolio
+    portfolio_return = average_weights@expected_returns
+    portfolio_risk = np.zeros_like(portfolio_return)
+    for i in range(num_bins):
+        # portfolio risk (standard deviation) for each optimal portfolio
+        portfolio_risk[i] = np.sqrt(average_weights[i]@covariance@average_weights[i])
+
+    return portfolio_return, portfolio_risk, average_weights
