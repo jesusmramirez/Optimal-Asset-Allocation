@@ -86,6 +86,13 @@ pp.title('Efficient Frontier')
 pp.xlabel('Risk')
 pp.ylabel('Return')
 
+df = np.hstack([opt_weights, returns.reshape(10,1), risks.reshape(10,1)])
+df = pd.DataFrame(df,columns=['Weight 1','Weight 2', 'Return', 'Risk (SD)'])
+pd.options.display.float_format = '{:,.8f}'.format
+print(df)
+writer = pd.ExcelWriter('results.xlsx')
+df.to_excel(writer,sheet_name='mean_var')
+
 # optimize a portfolio using mean-cvar framework
 min_return = 0.02
 res = opt.mean_cvar_optimization(data, min_return=min_return)
@@ -105,3 +112,4 @@ df = np.hstack([opt_weights, returns.reshape(10,1), cvars.reshape(10,1), risks.r
 df = pd.DataFrame(df,columns=['Weight 1','Weight 2', 'Return', 'Risk (CVaR)', 'SD'])
 pd.options.display.float_format = '{:,.8f}'.format
 print(df)
+df.to_excel(writer,sheet_name='mean_cvar')
