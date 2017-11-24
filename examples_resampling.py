@@ -7,7 +7,6 @@ Created on Fri Nov 24 11:54:00 2017
 
 import pandas as pd
 import numpy as np
-from scipy.stats import skew, kurtosis
 import matplotlib.pyplot as pp
 from portfolio_optimization import efficient_frontier_resampling, efficient_frontier
 from print_context import print_context
@@ -23,21 +22,17 @@ with print_context(formatter={'float': '{: 1.4f}'.format}):
     print('expected returns:')
     print(np.mean(X, axis=0))
     print('covariance:')
-    print(np.cov(X.T))
-    print('skewness:')
-    print(skew(X))
-    print('(excess) kurtosis:')
-    print(kurtosis(X))
+    print(np.cov(X.T, ddof=0))
 
 # compute the efficient frontier using resampling
 num_points = 20
-sample_size = 1000
+sample_size = 100
 num_bins = 20
-scale = 0.01
+scale = 0.5
 r_returns, r_risks , r_weights = efficient_frontier_resampling(data, 
                                                              num_points=num_points, 
                                                              sample_size=sample_size,
-                                                             num_bins=num_bins
+                                                             num_bins=num_bins,
                                                              scale=scale)
 
 # compute the efficient frontier
