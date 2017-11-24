@@ -500,11 +500,11 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
     initial = np.ones(num_assets)/num_assets    
     
     # optimize for each sample of new expected returns
-    for i, min_return in enumerate(min_returns):
-        for j in range(sample_size):
+    for j in range(sample_size):
+        for i, min_return in enumerate(min_returns):
             new_data = data + shocks[j]
             res = mean_variance_optimization(new_data, min_return, initial)
-            weights[i*sample_size + j] = res.x
+            weights[j*num_points + i] = res.x
     
     # measure the risk for each portfolio
     portfolio_risk = np.zeros(shape=num_points*sample_size)
@@ -512,22 +512,17 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
         # portfolio risk (standard deviation) for each optimal resampled portfolio
         portfolio_risk[i] = np.sqrt(weights[i]@covariance@weights[i])
     
-    # group portfolio weights by bins of same size, average them and normalize to one
-    bin_size = (max(portfolio_risk) - min(portfolio_risk))/num_bins
+    # group portfolio weights by bins of same number of elements, average them 
+    # and normalize to one
+    index = np.argsort(portfolio_risk)
+    sorted_weights = weights[index]
     
-    min_value = min(portfolio_risk)
     average_weights = []
-
     for j in range(num_bins):
-        if j == 0:
-            average_weight = weights[portfolio_risk <= min_value + bin_size]
-        else:
-            average_weight = weights[(portfolio_risk <= min_value + bin_size*(j + 1)) & (portfolio_risk > min_value + bin_size*j)]
-    
-        average_weight = np.mean(average_weight, axis=0)
-        average_weight = average_weight/sum(average_weight)
+        average_weight = sorted_weights[sample_size*j:sample_size*(j + 1),:]
+        average_weight = np.sum(average_weight, axis=0)/np.sum(average_weight)
         average_weights.append(average_weight)
-
+    
     average_weights = np.array(average_weights)
     # compute the efficient frontier
     # porfolio return for each optimal portfolio
