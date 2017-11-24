@@ -29,32 +29,36 @@ with print_context(formatter={'float': '{: 1.4f}'.format}):
     print('(excess) kurtosis:')
     print(kurtosis(X))
 
-# compute the efficient frontier and plot it
+# compute the efficient frontier using resampling
 num_points = 20
-sample_size = 100
+sample_size = 1000
 num_bins = 20
-returns, risks , ave_weights = efficient_frontier_resampling(data, 
+scale = 0.01
+r_returns, r_risks , r_weights = efficient_frontier_resampling(data, 
                                                              num_points=num_points, 
                                                              sample_size=sample_size,
-                                                             num_bins=num_bins)
-pp.plot(risks, returns, '.k')
+                                                             num_bins=num_bins
+                                                             scale=scale)
+
+# compute the efficient frontier
+num_points = 20
+returns, risks , weights = efficient_frontier(data, num_points=num_points)
+
+# plot the efficient frontiers
+pp.plot(r_risks, r_returns, '--k')
+pp.plot(risks, returns, '-r')
 pp.title('Efficient Frontier')
 pp.xlabel('Risk')
 pp.ylabel('Return')
 
-# compute the efficient frontier and plot it
-num_points = 20
-returns, risks , weights = efficient_frontier(data, num_points=num_points)
-
-pp.plot(risks, returns,'--')
 
 with print_context(formatter={'float': '{: 1.4f}'.format}):
     print('Average weights:')
-    print(ave_weights)
+    print(r_weights)
     print('Weights:')
     print(weights)
     
-np.savetxt('ave_weights.csv', ave_weights, delimiter=',')
+np.savetxt('r_weights.csv', r_weights, delimiter=',')
 np.savetxt('weights.csv', weights, delimiter=',')
     
     
