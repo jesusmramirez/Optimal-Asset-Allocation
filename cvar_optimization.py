@@ -333,10 +333,11 @@ def efficient_frontier(data, num_points=10):
     min_returns = np.linspace(lower_return, upper_return, num=num_points)
 
     # initialize weights for portfolio optimization
-    num_assets = len(expected_returns)
-    initial = np.ones(num_assets)/num_assets
+    num_assets = len(expected_returns)    
     
     weights = np.zeros(shape=(num_points, num_assets))
+    initial = np.ones(num_assets)/num_assets
+    
     for i, min_return in enumerate(min_returns):
         res = mean_variance_optimization(data, min_return, initial)
         weights[i] = res.x[:num_assets]
@@ -351,3 +352,52 @@ def efficient_frontier(data, num_points=10):
         portfolio_risk[i] = np.sqrt(weights[i]@covariance@weights[i])
     
     return portfolio_return, portfolio_risk, weights
+
+
+def efficient_frontier_cvar(data, beta=0.95, num_points=10):
+    """
+    Computes the efficient frontier
+    
+    Parameters
+    ----------
+        data: array_like of shape(M, N) where M denotes the number of 
+            draws and N the number of assets each row is a draw from the joint 
+            distribution of returns
+        beta: scalar between 0 and 1, common values for beta are 0.9, 0.95 or 0.99
+        num_points: number of points for the efficient frontier
+
+    Return
+    ------
+        out: 3 array_like of shape(num_points, ) as follows: portfolio returns,
+            portfolio risks and optimal weights
+    
+    """
+    # compute expected return and covariance matrix from data
+    expected_returns = np.mean(data, axis=0)
+    covariance = np.cov(data.T)
+    
+    # make a grid for minimum portfolio return (short-selling is not allowed)
+    lower_return = min(expected_returns)
+    upper_return = max(expected_returns)
+    min_returns = np.linspace(lower_return, upper_return, num=num_points)
+
+    # initialize weights for portfolio optimization
+    num_assets = len(expected_returns)
+    
+    weights = np.zeros(shape=(num_points, num_assets))
+    cvars = np.zeros(shape=num_points)
+    for i, min_return in enumerate(min_returns):
+        res = mean_cvar_optimization(data, min_return, beta)
+        weights[i] = res.x[:num_assets]
+        cvars[i] = res.fun        
+        
+    # compute the efficient frontier
+    # porfolio return for each optimal portfolio
+    portfolio_return = weights@expected_returns
+    portfolio_risk = np.zeros_like(portfolio_return)
+    
+    for i in range(num_points):
+        # portfolio risk (standard deviation) for each optimal portfolio
+        portfolio_risk[i] = np.sqrt(weights[i]@covariance@weights[i])
+    
+    return portfolio_return, portfolio_risk, cvars, weights
