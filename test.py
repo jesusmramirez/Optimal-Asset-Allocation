@@ -77,7 +77,7 @@ res = opt.mean_variance_optimization(data, min_return=min_return, initial=initia
 
 print('Optimal weights: ({0:1.4f}, {1:1.4f})'.format(res.x[0], res.x[1]))
 print('Optimal Return: {:1.4f}'.format(res.x@fake_mean))
-print('Optimal Risk: {:1.4f}'.format(np.sqrt(res.fun)))
+print('Optimal Risk (Std. Dev.): {:1.4f}'.format(np.sqrt(res.fun)))
 
 # compute the efficient frontier and plot it
 returns, risks , opt_weights = opt.efficient_frontier(data)
@@ -92,4 +92,16 @@ res = opt.mean_cvar_optimization(data, min_return=min_return)
 
 print('Optimal weights: ({0:1.4f}, {1:1.4f})'.format(res.x[0], res.x[1]))
 print('Optimal Return: {:1.4f}'.format(res.x@fake_mean))
-print('Optimal Risk: {:1.4f}'.format(np.sqrt(res.fun)))
+print('Optimal Risk (CVaR): {:1.4f}'.format(res.fun))
+
+# compute the efficient frontier and plot it
+returns, risks , cvars, opt_weights = opt.efficient_frontier_cvar(data)
+pp.plot(risks, returns)
+pp.title('Efficient Frontier')
+pp.xlabel('Risk')
+pp.ylabel('Return')
+
+df = np.hstack([opt_weights, returns.reshape(10,1), cvars.reshape(10,1), risks.reshape(10,1)])
+df = pd.DataFrame(df,columns=['Weight 1','Weight 2', 'Return', 'Risk (CVaR)', 'SD'])
+pd.options.display.float_format = '{:,.8f}'.format
+print(df)
