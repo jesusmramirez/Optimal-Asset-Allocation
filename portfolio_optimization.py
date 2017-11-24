@@ -492,8 +492,8 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
     # generate random normal shocks with mean zero and variance 1/10th of real variances
     scale = 0.1
     variances = np.var(data, axis=0)*scale
-    num_asset = len(variances)
-    shocks = np.random.normal(scale=variances, size=(sample_size, num_asset))
+    num_assets = len(variances)
+    shocks = np.random.normal(scale=variances, size=(sample_size, num_assets))
 
     # initialize weights for portfolio optimization    
     weights = np.zeros(shape=(num_points*sample_size, num_assets))
