@@ -388,10 +388,11 @@ def efficient_frontier(data=None, expected_returns=None, covariance=None, num_po
     if covariance is None:
         covariance = np.cov(data.T, ddof=0)
     
-
+    # create a parcial function from mean_variance that assumes given the expected
+    # returns and covariance matrix
     markowitz_optimization = partial(mean_variance_optimization, 
-                                         expected_returns=expected_returns, 
-                                         covariance=covariance)
+                                     expected_returns=expected_returns, 
+                                     covariance=covariance)
     
     # make a grid for minimum portfolio return (short-selling is not allowed)
     lower_return = min(expected_returns)
@@ -469,7 +470,8 @@ def efficient_frontier_cvar(data, beta=0.95, num_points=10):
     return portfolio_return, portfolio_risk, cvars, weights
 
 
-def efficient_frontier_resampling(data, num_bins=10, sample_size=100, scale=0.1):
+def efficient_frontier_resampling(data=None, expected_returns=None, covariance=None, 
+                                  num_bins=10, sample_size=100, scale=0.1):
     """
     Computes the efficient frontier
     
@@ -490,32 +492,29 @@ def efficient_frontier_resampling(data, num_bins=10, sample_size=100, scale=0.1)
             portfolio risks and optimal weights
     
     """
-    # compute expected return and covariance matrix from data
-    expected_returns = np.mean(data, axis=0)
-    covariance = np.cov(data.T, ddof=0)
-    
-    # make a grid for minimum portfolio return (short-selling is not allowed)
-    lower_return = min(expected_returns)
-    upper_return = max(expected_returns)
-    min_returns = np.linspace(lower_return, upper_return, num=num_bins)
+    # compute expected return and covariance matrix from data if they are not 
+    # passed
+    if expected_returns is None:
+        expected_returns = np.mean(data, axis=0)
 
+    if covariance is None:
+        covariance = np.cov(data.T, ddof=0)
+    
     # generate random normal shocks with mean zero and variance 1/10th of its 
     # std. deviation
     std = np.std(data, axis=0)*scale
     num_assets = len(std)
-    shocks = np.random.normal(scale=np.square(std), size=(sample_size, num_assets))
+    noise = np.random.normal(scale=np.square(std), size=(sample_size, num_assets))
 
     # initialize weights for portfolio optimization    
-    weights = np.zeros(shape=(num_bins*sample_size, num_assets))
-    initial = np.ones(num_assets)/num_assets    
+    weights = np.zeros(shape=(num_bins*sample_size, num_assets))    
     
-    # optimize for each sample of new expected returns
+    # compute the efficient frontier for each sample of noised expected returns
     for j in range(sample_size):
-        for i, min_return in enumerate(min_returns):
-            new_data = data + shocks[j]
-            res = mean_variance_optimization(new_data, min_return, initial)
-            weights[j*num_bins + i] = res.x
-    
+        noised_expected_returns = expected_returns + noise[j]
+        weights[j*num_bins: (j + 1)*num_bins] = efficient_frontier(expected_returns=noised_expected_returns, 
+                                                                   covariance=covariance, num_points=num_bins)
+
     # measure the risk for each portfolio
     portfolio_risk = np.zeros(shape=num_bins*sample_size)
     for i in range(num_bins*sample_size):
