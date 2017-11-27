@@ -16,7 +16,7 @@ raw_data = pd.read_excel('test_data.xlsx',sheetname='data_sample')
 raw_data = raw_data.iloc[:,1:9]
 data = raw_data.values
 
-# print its mean, variance-covariance, skewness and kurtosis
+# print its mean and covariance
 with print_context(formatter={'float': '{: 1.4f}'.format}):
     X = data
     print('expected returns:')
@@ -25,15 +25,13 @@ with print_context(formatter={'float': '{: 1.4f}'.format}):
     print(np.cov(X.T, ddof=0))
 
 # compute the efficient frontier using resampling
-num_points = 20
 sample_size = 1000
 num_bins = 20
 scale = 0.7
 r_returns, r_risks , r_weights = efficient_frontier_resampling(data, 
-                                                             num_points=num_points, 
-                                                             sample_size=sample_size,
-                                                             num_bins=num_bins,
-                                                             scale=scale)
+                                                               num_bins=num_bins,
+                                                               sample_size=sample_size,
+                                                               scale=scale)
 
 # compute the efficient frontier
 num_points = 20
