@@ -26,9 +26,9 @@ with print_context(formatter={'float': '{: 1.4f}'.format}):
 
 # compute the efficient frontier using resampling
 num_points = 20
-sample_size = 100
+sample_size = 1000
 num_bins = 20
-scale = 0.5
+scale = 0.7
 r_returns, r_risks , r_weights = efficient_frontier_resampling(data, 
                                                              num_points=num_points, 
                                                              sample_size=sample_size,
@@ -40,12 +40,12 @@ num_points = 20
 returns, risks , weights = efficient_frontier(data, num_points=num_points)
 
 # plot the efficient frontiers
-pp.plot(r_risks, r_returns, '--k')
-pp.plot(risks, returns, '-r')
+pp.plot(r_risks, r_returns, '--k', label='Resampling')
+pp.plot(risks, returns, '-r', label='Markowitz')
 pp.title('Efficient Frontier')
 pp.xlabel('Risk')
 pp.ylabel('Return')
-
+pp.legend(loc='lower right')
 
 with print_context(formatter={'float': '{: 1.4f}'.format}):
     print('Average weights:')
