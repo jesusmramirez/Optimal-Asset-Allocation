@@ -507,24 +507,23 @@ def efficient_frontier_resampling(data=None, expected_returns=None, covariance=N
     noise = np.random.normal(scale=np.square(std), size=(sample_size, num_assets))
 
     # initialize weights for portfolio optimization    
-    weights = np.zeros(shape=(num_bins*sample_size, num_assets))    
+    r_weights = np.zeros(shape=(num_bins*sample_size, num_assets))    
+    
+    # measure the risk for each portfolio
+    portfolio_risk = np.zeros(shape=num_bins*sample_size)
     
     # compute the efficient frontier for each sample of noised expected returns
     for j in range(sample_size):
         noised_expected_returns = expected_returns + noise[j]
-        weights[j*num_bins: (j + 1)*num_bins] = efficient_frontier(expected_returns=noised_expected_returns, 
-                                                                   covariance=covariance, num_points=num_bins)
-
-    # measure the risk for each portfolio
-    portfolio_risk = np.zeros(shape=num_bins*sample_size)
-    for i in range(num_bins*sample_size):
-        # portfolio risk (standard deviation) for each optimal resampled portfolio
-        portfolio_risk[i] = np.sqrt(weights[i]@covariance@weights[i])
+        returns, risks, weights  = efficient_frontier(expected_returns=noised_expected_returns, 
+                                                      covariance=covariance, num_points=num_bins)
+        r_weights[j*num_bins: (j + 1)*num_bins] = weights
+        portfolio_risk[j*num_bins: (j + 1)*num_bins] = risks
     
     # group portfolio weights by bins of same number of elements, average them 
     # and normalize to one
     index = np.argsort(portfolio_risk)
-    sorted_weights = weights[index]
+    sorted_weights = r_weights[index]
     
     average_weights = []
     for j in range(num_bins):
