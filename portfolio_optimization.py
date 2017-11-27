@@ -8,6 +8,7 @@ Created on Thu Nov  9 07:39:13 2017
 import numpy as np
 from scipy.stats import norm, moment
 from scipy.optimize import minimize, linprog
+from functools import partial
 
 def standardize(data):
     """
@@ -120,7 +121,7 @@ def mean_mvar_optimization(data, min_return, initial, quantile=0.05,
             among other features after optimization
     
     """
-    if expected_returns == None:
+    if expected_returns is None:
         expected_returns = np.mean(data, axis=0)
 
     def func(weights):
@@ -173,7 +174,7 @@ def mean_mvar_optimization(data, min_return, initial, quantile=0.05,
 
 
 # minimum-variance portfolio given a minimum portfolio return (Markowitz optimization)
-def mean_variance_optimization(data, min_return, initial, expected_returns=None, 
+def mean_variance_optimization(min_return, initial, data=None, expected_returns=None, 
                                covariance=None, display=False):
     """
     Computes the optimal weights that minimize portfolio variance subject to minimum 
@@ -181,10 +182,10 @@ def mean_variance_optimization(data, min_return, initial, expected_returns=None,
     
     Parameters
     ----------
-        data: array_like of shape(M, N) with N > 1
         min_return: scalar float
             specifies the minimum return that the portfolio can attain
-        initial: array_like of shape(N, )            
+        initial: array_like of shape(N, )
+        data: array_like of shape(M, N) with N > 1
         expected_returns: array_like of shape (N, )
         covariance: array_like of shape (N, N)
         display: boolean, default value is False
@@ -197,10 +198,10 @@ def mean_variance_optimization(data, min_return, initial, expected_returns=None,
             (for more information see scipy.optimize documentation)
     
     """
-    if expected_returns == None:
+    if expected_returns is None:
         expected_returns = np.mean(data, axis=0)
 
-    if covariance == None:
+    if covariance is None:
         covariance = np.cov(data.T, ddof=0)
     
     def func(weights):
@@ -280,7 +281,7 @@ def mean_cvar_optimization(data, min_return, beta=0.95, expected_returns=None,
     
     """
 
-    if expected_returns == None:
+    if expected_returns is None:
         expected_returns = np.mean(data, axis=0)
 
     # for this version I keep Rockafellar and Uryasev's notation
@@ -362,7 +363,7 @@ def resampling_optimization(data, min_return, initial, sample_size=100,
     return  weights
 
 
-def efficient_frontier(data, num_points=10):
+def efficient_frontier(data=None, expected_returns=None, covariance=None, num_points=10):
     """
     Computes the efficient frontier
     
@@ -379,9 +380,18 @@ def efficient_frontier(data, num_points=10):
             portfolio risks and optimal weights
     
     """
-    # compute expected return and covariance matrix from data
-    expected_returns = np.mean(data, axis=0)
-    covariance = np.cov(data.T, ddof=0)
+    # compute expected return and covariance matrix from data if they are not 
+    # passed
+    if expected_returns is None:
+        expected_returns = np.mean(data, axis=0)
+
+    if covariance is None:
+        covariance = np.cov(data.T, ddof=0)
+    
+
+    markowitz_optimization = partial(mean_variance_optimization, 
+                                         expected_returns=expected_returns, 
+                                         covariance=covariance)
     
     # make a grid for minimum portfolio return (short-selling is not allowed)
     lower_return = min(expected_returns)
@@ -395,7 +405,7 @@ def efficient_frontier(data, num_points=10):
     initial = np.ones(num_assets)/num_assets
     
     for i, min_return in enumerate(min_returns):
-        res = mean_variance_optimization(data, min_return, initial)
+        res = markowitz_optimization(min_return=min_return, initial=initial)
         weights[i] = res.x[:num_assets]
         
     # compute the efficient frontier
@@ -459,7 +469,7 @@ def efficient_frontier_cvar(data, beta=0.95, num_points=10):
     return portfolio_return, portfolio_risk, cvars, weights
 
 
-def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins=10, scale=0.1):
+def efficient_frontier_resampling(data, num_bins=10, sample_size=100, scale=0.1):
     """
     Computes the efficient frontier
     
@@ -487,7 +497,7 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
     # make a grid for minimum portfolio return (short-selling is not allowed)
     lower_return = min(expected_returns)
     upper_return = max(expected_returns)
-    min_returns = np.linspace(lower_return, upper_return, num=num_points)
+    min_returns = np.linspace(lower_return, upper_return, num=num_bins)
 
     # generate random normal shocks with mean zero and variance 1/10th of its 
     # std. deviation
@@ -496,7 +506,7 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
     shocks = np.random.normal(scale=np.square(std), size=(sample_size, num_assets))
 
     # initialize weights for portfolio optimization    
-    weights = np.zeros(shape=(num_points*sample_size, num_assets))
+    weights = np.zeros(shape=(num_bins*sample_size, num_assets))
     initial = np.ones(num_assets)/num_assets    
     
     # optimize for each sample of new expected returns
@@ -504,11 +514,11 @@ def efficient_frontier_resampling(data, num_points=10, sample_size=100, num_bins
         for i, min_return in enumerate(min_returns):
             new_data = data + shocks[j]
             res = mean_variance_optimization(new_data, min_return, initial)
-            weights[j*num_points + i] = res.x
+            weights[j*num_bins + i] = res.x
     
     # measure the risk for each portfolio
-    portfolio_risk = np.zeros(shape=num_points*sample_size)
-    for i in range(num_points*sample_size):
+    portfolio_risk = np.zeros(shape=num_bins*sample_size)
+    for i in range(num_bins*sample_size):
         # portfolio risk (standard deviation) for each optimal resampled portfolio
         portfolio_risk[i] = np.sqrt(weights[i]@covariance@weights[i])
     
