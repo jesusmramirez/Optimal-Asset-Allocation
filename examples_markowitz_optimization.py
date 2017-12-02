@@ -40,7 +40,7 @@ with print_context(formatter={'float': '{: 1.4f}'.format}):
 # optimize a portfolio using Markowitz framework
 min_return = 0.025
 initial = np.ones(shape=3)/3
-res = mean_variance_optimization(min_return=min_return, initial=initial, data=data)
+res = mean_variance_optimization(min_return=min_return, initial=initial, data=data, short_selling=False)
 
 print('Optimal weights: ({0:1.4f}, {1:1.4f}, {2:1.4f})'.format(res.x[0], res.x[1], res.x[2]))
 print('Optimal Return: {:1.4f}'.format(res.x@expected_return))
@@ -48,7 +48,7 @@ print('Optimal Risk (Std. Dev.): {:1.4f}'.format(np.sqrt(res.fun)))
 
 # compute the efficient frontier and plot it
 num_points = 20
-returns, risks , weights = efficient_frontier(data=data, num_points=num_points)
+returns, risks , weights = efficient_frontier(data=data, short_selling=False, num_points=num_points)
 
 pp.plot(risks, returns)
 pp.title('Efficient Frontier')
