@@ -175,7 +175,7 @@ def mean_mvar_optimization(data, min_return, initial, quantile=0.05,
 
 # minimum-variance portfolio given a minimum portfolio return (Markowitz optimization)
 def mean_variance_optimization(min_return, initial, data=None, expected_returns=None, 
-                               covariance=None, display=False):
+                               covariance=None, short_selling=False, display=False):
     """
     Computes the optimal weights that minimize portfolio variance subject to minimum 
     level of return in the portfolio using Sequential Least SQuares Programming
@@ -210,44 +210,48 @@ def mean_variance_optimization(min_return, initial, data=None, expected_returns=
         """
         return weights@covariance@weights
 
+    def jac(weights):
+        """
+        Jacobian of the objective function
+        """
+        return 2*covariance@weights
+
     # constraints
     def const_1(weights):
         """
         Contraint 1: weights add up 1
         """
         return np.sum(weights) - 1
-
+    
     def const_2(weights):
+        """
+        Contraint 2: portfolio return can be lower than a given fixed minimum 
+        return
+        """
+        return weights@expected_returns - min_return
+
+    def const_3(weights):
         """
         Contraint 2: weights are non-negative
         """     
         return weights
-
-    def const_3(weights):
-        """
-        Contraint 3: weights are never greater than 1
-        """
-        return 1 - weights
-    
-    def const_4(weights):
-        """
-        Contraint 4: portfolio return can be lower than a given fixed minimum 
-        return
-        """
-        return weights@expected_returns - min_return
     
     # setting up constraints as dictionary
-    cons = ({'type': 'eq',
-            'fun': lambda x: const_1(x)},
-           {'type': 'ineq',
-           'fun': lambda x: const_2(x)},
-           {'type': 'ineq',
-           'fun': lambda x: const_3(x)},
-           {'type': 'ineq',
-           'fun': lambda x: const_4(x)})
+    if short_selling:
+        cons = ({'type': 'eq',
+                 'fun': lambda x: const_1(x)},
+                {'type': 'ineq',
+                 'fun': lambda x: const_2(x)})
+    else:
+        cons = ({'type': 'eq',
+                 'fun': lambda x: const_1(x)},
+                {'type': 'ineq',
+                 'fun': lambda x: const_2(x)},
+                {'type': 'ineq',
+                 'fun': lambda x: const_3(x)})
     
     # Sequential Least SQuares Programming (SLSQP)
-    res = minimize(func, initial, constraints=cons, method='SLSQP', 
+    res = minimize(func, initial, jac=jac, constraints=cons, method='SLSQP', 
                    options={'disp': display})
     return res
 
@@ -363,7 +367,8 @@ def resampling_optimization(data, min_return, initial, sample_size=100,
     return  weights
 
 
-def efficient_frontier(data=None, expected_returns=None, covariance=None, num_points=10):
+def efficient_frontier(data=None, expected_returns=None, covariance=None, 
+                       short_selling=False, num_points=10, upper_return=None):
     """
     Computes the efficient frontier
     
@@ -392,11 +397,18 @@ def efficient_frontier(data=None, expected_returns=None, covariance=None, num_po
     # returns and covariance matrix
     markowitz_optimization = partial(mean_variance_optimization, 
                                      expected_returns=expected_returns, 
-                                     covariance=covariance)
+                                     covariance=covariance,
+                                     short_selling=short_selling)
     
     # make a grid for minimum portfolio return (short-selling is not allowed)
-    lower_return = min(expected_returns)
-    upper_return = max(expected_returns)
+    if short_selling:
+        lower_return = 0.0
+    else:
+        lower_return = min(expected_returns)
+    
+    if upper_return is None:
+        upper_return = max(expected_returns)
+    
     min_returns = np.linspace(lower_return, upper_return, num=num_points)
 
     # initialize weights for portfolio optimization
@@ -471,10 +483,11 @@ def efficient_frontier_cvar(data, beta=0.95, num_points=10):
 
 
 def efficient_frontier_resampling(data=None, expected_returns=None, covariance=None, 
-                                  num_bins=10, sample_size=100, scale=0.1):
+                                  short_selling=False, num_bins=10, sample_size=100, 
+                                  upper_return=None, scale=0.1):
     """
     Computes the efficient frontier
-    
+
     Parameters
     ----------
         data: array_like of shape(M, N) where M denotes the number of 
@@ -502,9 +515,14 @@ def efficient_frontier_resampling(data=None, expected_returns=None, covariance=N
     
     # generate random normal shocks with mean zero and variance 1/10th of its 
     # std. deviation
-    std = np.std(data, axis=0)*scale
+    if data is None:
+        std = np.sqrt(np.diag(covariance))*scale
+    else:
+        std = np.std(data, axis=0)*scale
+
     num_assets = len(std)
-    noise = np.random.normal(scale=np.square(std), size=(sample_size, num_assets))
+    #noise = np.random.normal(scale=np.square(std), size=(sample_size, num_assets))
+    noise = np.random.normal(size=(sample_size, num_assets))*std
 
     # initialize weights for portfolio optimization    
     r_weights = np.zeros(shape=(num_bins*sample_size, num_assets))    
@@ -516,7 +534,8 @@ def efficient_frontier_resampling(data=None, expected_returns=None, covariance=N
     for j in range(sample_size):
         noised_expected_returns = expected_returns + noise[j]
         returns, risks, weights  = efficient_frontier(expected_returns=noised_expected_returns, 
-                                                      covariance=covariance, num_points=num_bins)
+                                                      covariance=covariance, short_selling=short_selling,
+                                                      num_points=num_bins, upper_return=upper_return)
         r_weights[j*num_bins: (j + 1)*num_bins] = weights
         portfolio_risk[j*num_bins: (j + 1)*num_bins] = risks
     
@@ -532,8 +551,11 @@ def efficient_frontier_resampling(data=None, expected_returns=None, covariance=N
         average_weights.append(average_weight)
     
     average_weights = np.array(average_weights)
+
+    # portfolio_return = r_weights@expected_returns # CHANGED
     # compute the efficient frontier
     # porfolio return for each optimal portfolio
+
     portfolio_return = average_weights@expected_returns
     portfolio_risk = np.zeros_like(portfolio_return)
     for i in range(num_bins):
